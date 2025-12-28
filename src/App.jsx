@@ -1,4 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken, 
+  onAuthStateChanged,
+  signOut
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  query,
+  orderBy,
+  serverTimestamp
+} from 'firebase/firestore';
 import { 
   BookOpen, 
   ChevronRight, 
@@ -16,13 +33,31 @@ import {
 
 /* eslint-disable react/prop-types */
 
+// --- CONFIGURACIÓN FIREBASE ---
+const getFirebaseConfig = () => {
+  try {
+    const config = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    return config.apiKey ? config : null;
+  } catch (e) { return null; }
+};
+
+const firebaseConfig = getFirebaseConfig();
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'diario-autor-original';
+
+let app, auth, db;
+if (firebaseConfig) {
+  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+}
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isBookOpen, setIsBookOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [user, setUser] = useState(null);
   const [error, setError] = useState("");
-
+  
   // Estado del formulario de registro
   const [formData, setFormData] = useState({
     name: "",
@@ -31,25 +66,65 @@ export default function App() {
     confirmPassword: ""
   });
 
-  const [posts] = useState([
+  // Estado de las publicaciones (posts)
+  const [posts, setPosts] = useState([
     { id: 1, author: "Elena M.", content: "Hoy descubrí que el diseño emocional es la clave de todo. No se trata solo de cómo se ve, sino de cómo hace sentir al usuario al interactuar con cada elemento.", date: "28 Dic", likes: 12 },
     { id: 2, author: "Marco Polo", content: "Viajar no es solo moverse de un punto a otro, es cambiar de perspectiva. Cada destino es un espejo que nos devuelve una imagen nueva de nosotros mismos.", date: "27 Dic", likes: 45 },
     { id: 3, author: "Sofía Dev", content: "React y Tailwind son la pareja perfecta para prototipos rápidos. La velocidad de desarrollo aumenta exponencialmente cuando no tienes que salir de tu archivo JSX.", date: "26 Dic", likes: 89 },
     { id: 4, author: "Gabi Art", content: "El minimalismo no es la falta de algo, es la cantidad perfecta de todo. Encontrar ese equilibrio es el verdadero reto de cualquier artista moderno.", date: "25 Dic", likes: 33 },
   ]);
 
+  // --- LÓGICA DE FIREBASE ---
+  useEffect(() => {
+    if (!firebaseConfig) return;
+
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) { console.error("Auth error:", err); }
+    };
+    initAuth();
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
+      if (u && !u.isAnonymous) {
+        setUser({ name: u.displayName || formData.name || "Autor" });
+        setIsAuthenticated(true);
+      }
+    });
+
+    const postsRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
+    const unsubscribePosts = onSnapshot(postsRef, (snapshot) => {
+      if (!snapshot.empty) {
+        const firestorePosts = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        // Si hay posts en Firebase, los unimos a los iniciales o los reemplazamos
+        setPosts(prev => [...firestorePosts, ...prev].filter((v,i,a)=>a.findIndex(t=>(t.id === v.id))===i));
+      }
+    }, (err) => console.error("Firestore error:", err));
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribePosts();
+    };
+  }, []);
+
   const handleInputChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
-    setError(""); // Limpiar error al escribir
+    setError(""); 
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     
-    // Validaciones básicas
     if (formData.password !== formData.confirmPassword) {
       setError("Las contraseñas no coinciden");
       return;
@@ -60,8 +135,21 @@ export default function App() {
       return;
     }
 
+    // Simulamos éxito o conectamos si hay config
     setUser({ name: formData.name });
     setIsAuthenticated(true);
+    
+    // Si hay Firestore, guardamos un log de registro
+    if (db) {
+      try {
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'users'), {
+          name: formData.name,
+          email: formData.email,
+          createdAt: serverTimestamp()
+        });
+      } catch(e) { console.error(e); }
+    }
+
     setTimeout(() => setIsBookOpen(true), 500);
   };
 
@@ -71,6 +159,7 @@ export default function App() {
       setIsAuthenticated(false);
       setUser(null);
       setFormData({ name: "", email: "", password: "", confirmPassword: "" });
+      if (auth) signOut(auth);
     }, 600);
   };
 
@@ -89,7 +178,6 @@ export default function App() {
         .perspective-2000 { perspective: 2000px; }
         .book-shadow { box-shadow: 25px 25px 70px rgba(0,0,0,0.45); }
         .inner-page-shadow { box-shadow: inset -25px 0 40px -20px rgba(0,0,0,0.1); }
-        /* Custom scrollbar for the form if needed */
         .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #c5a059; border-radius: 10px; }
@@ -263,19 +351,19 @@ export default function App() {
               <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-stone-200/50 via-stone-100/10 to-transparent"></div>
               
               <div className="space-y-10 relative z-10 px-4">
-                <span className="text-xs text-[#c5a059] font-black uppercase tracking-[0.5em] font-sans">{posts[currentPage].date}</span>
+                <span className="text-xs text-[#c5a059] font-black uppercase tracking-[0.5em] font-sans">{posts[currentPage]?.date || "Hoy"}</span>
                 <p className="text-3xl text-stone-800 leading-[1.7] text-justify first-letter:text-8xl first-letter:font-bold first-letter:mr-4 first-letter:float-left first-letter:text-stone-900 first-letter:leading-none">
-                  {posts[currentPage].content}
+                  {posts[currentPage]?.content || "No hay más páginas escritas."}
                 </p>
                 
                 <div className="pt-12 border-t border-stone-100 flex items-center justify-between">
                   <div className="flex flex-col">
                     <span className="text-[10px] text-stone-400 uppercase tracking-widest mb-1">Escrito por</span>
-                    <span className="text-xl font-bold text-stone-700 underline decoration-[#c5a059] decoration-4 underline-offset-8">@{posts[currentPage].author.replace(' ', '').toLowerCase()}</span>
+                    <span className="text-xl font-bold text-stone-700 underline decoration-[#c5a059] decoration-4 underline-offset-8">@{posts[currentPage]?.author?.replace(/\s+/g, '').toLowerCase() || "autor"}</span>
                   </div>
                   <div className="flex flex-col items-end gap-2 text-rose-600">
                     <Heart size={28} fill="currentColor" />
-                    <span className="text-lg font-sans font-black">{posts[currentPage].likes} Me gusta</span>
+                    <span className="text-lg font-sans font-black">{posts[currentPage]?.likes || 0} Me gusta</span>
                   </div>
                 </div>
               </div>
