@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+body {
+margin: 0;
+/* Fuente con aspecto de libro antiguo /
+font-family: 'Georgia', serif;
+/ Opcional: un color de fondo crema suave para reforzar el estilo de papel */
+@apply bg-stone-50 text-stone-900;
+}
+
+/* Mejora la legibilidad de los textos largos en el estilo de libro */
+h1, h2, h3, h4, h5, h6 {
+@apply font-serif font-bold text-stone-950;
+}
+
+p {
+@apply leading-relaxed mb-4 text-justify;
+}
+}
