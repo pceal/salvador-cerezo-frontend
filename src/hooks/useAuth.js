@@ -1,20 +1,98 @@
-import { useContext } from 'react';
-import { AuthContext } from '../context/AuthContext';
+import { useState, useEffect } from 'react';
+import { 
+  onAuthStateChanged, 
+  signOut, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  updateProfile 
+} from 'firebase/auth';
+// Importamos la instancia de auth. 
+// Nota: Asegúrate de que la ruta coincida con tu archivo de configuración de Firebase.
+import { auth } from '../api/firebaseConfig'; 
 
-/**
- * Hook personalizado para acceder al contexto de autenticación.
- * Permite obtener el usuario, estado de carga y funciones de login/logout
- * sin necesidad de importar useContext en cada componente.
- */
-const useAuth = () => {
-  const context = useContext(AuthContext);
+export const useAuth = () => {
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Validación de seguridad: se asegura que el hook se use dentro del proveedor
-  if (!context) {
-    throw new Error('useAuth debe ser utilizado dentro de un AuthProvider');
-  }
+  /**
+   * CONFIGURACIÓN DEL ADMINISTRADOR
+   * El sistema detectará automáticamente si el usuario es admin basándose en este correo.
+   */
+  const ADMIN_EMAIL = "salvador@admin.com"; 
 
-  return context;
+  useEffect(() => {
+    // Escucha en tiempo real los cambios en el estado de autenticación
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        // Intentamos recuperar datos adicionales si existen en el almacenamiento local
+        const savedData = JSON.parse(localStorage.getItem('user_session'));
+        
+        const userData = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          name: firebaseUser.displayName || savedData?.name || "Autor",
+          // Verificación de rol: Si el email coincide, asignamos 'admin'
+          role: firebaseUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user',
+          token: firebaseUser.accessToken
+        };
+
+        setUser(userData);
+        setIsAuthenticated(true);
+        // Persistimos la sesión localmente para rapidez de carga en UI
+        localStorage.setItem('user_session', JSON.stringify(userData));
+      } else {
+        // Limpieza total al cerrar sesión
+        setUser(null);
+        setIsAuthenticated(false);
+        localStorage.removeItem('user_session');
+      }
+      setLoading(false);
+    });
+
+    // Limpiamos el observador al desmontar el hook
+    return () => unsubscribe();
+  }, []);
+
+  /**
+   * Registra un nuevo usuario y actualiza su perfil.
+   * Si el email ya existe, intenta iniciar sesión directamente.
+   */
+  const registerAndLogin = async (email, password, name) => {
+    try {
+      // 1. Crear el usuario en Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // 2. Actualizar el nombre mostrado (displayName) inmediatamente
+      await updateProfile(userCredential.user, {
+        displayName: name
+      });
+
+      return { success: true };
+    } catch (error) {
+      // Manejo de error: Si el usuario ya existe, procedemos al login
+      if (error.code === 'auth/email-already-in-use') {
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+          return { success: true };
+        } catch (loginError) {
+          return { success: false, error: "Credenciales inválidas para este usuario." };
+        }
+      }
+      return { success: false, error: error.message };
+    }
+  };
+
+  /**
+   * Cierra la sesión del usuario actual.
+   */
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
+
+  return { user, isAuthenticated, registerAndLogin, logout, loading };
 };
-
-export default useAuth;
