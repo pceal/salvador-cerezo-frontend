@@ -1,4 +1,5 @@
 import React from 'react';
+// Corregido: lucide-react
 import { Bookmark, Maximize2, Minimize2, FileText, Book, Calendar, Users, ChevronDown, LogOut, Eye, Plus, Edit3, Trash2 } from 'lucide-react';
 
 export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthenticated, user, activeMenu, setActiveMenu, handleLogin, formData, handleInputChange, handleLogoutAction, setView }) {
@@ -30,27 +31,32 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
 
   return (
     <div 
- className={`absolute left-1/2 transition-all duration-700 z-50 shadow-[5px_5px_20px_rgba(0,0,0,0.4)] flex flex-col items-center text-white overflow-hidden
-  ${isMinimized 
-    ? '-top-[350px] w-12 h-[410px] tab-shape bg-[#78350f] cursor-pointer' 
-    : '-top-10 w-44 h-[550px] bookmark-shape bg-[#78350f]' 
-  }`}
-  onClick={() => isMinimized && setIsMinimized(false)}
+      className={`absolute left-1/2 transition-all duration-700 z-50 shadow-[5px_5px_20px_rgba(0,0,0,0.4)] flex flex-col items-center text-white overflow-hidden
+      ${isMinimized 
+        ? '-top-[330px] w-12 h-[410px] tab-shape bg-[#78350f] cursor-pointer' 
+        : '-top-10 w-44 h-[550px] bookmark-shape bg-[#78350f]' 
+      }`}
+      onClick={() => isMinimized && setIsMinimized(false)}
     >
+    
       {isMinimized ? (
-        <div className="w-full h-full flex flex-col items-center justify-end pb-8">
-          <span className="vertical-text text-[10px] font-black uppercase tracking-[0.6em] text-orange-200/80">MENÚ</span>
-          <Maximize2 size={12} className="opacity-40 mt-2"/>
+        <div className="w-full h-full relative"> 
+          {/* top-[345px]: mantiene la palabra centrada en la solapa que ahora baja más */}
+          <div className="absolute top-[323px] left-[55%] -translate-x-1/2 flex flex-col items-center">
+            <span className="vertical-text text-[10px] font-medium uppercase tracking-[0.3em] leading-none text-orange-200/90 whitespace-nowrap">
+              MENÚ
+            </span>
+          </div>
         </div>
       ) : (
-        <div className="w-full h-full pt-44 flex flex-col no-scrollbar overflow-y-auto relative">
+        <div className="w-full h-full pt-12 flex flex-col no-scrollbar overflow-y-auto relative">
           {isAuthenticated && (
-            <button onClick={(e) => { e.stopPropagation(); setIsMinimized(true); }} className="absolute top-44 right-2 opacity-30 hover:opacity-100 p-2 z-10">
+            <button onClick={(e) => { e.stopPropagation(); setIsMinimized(true); }} className="absolute top-8 right-2 opacity-30 hover:opacity-100 p-2 z-10">
               <Minimize2 size={14}/>
             </button>
           )}
           {!isAuthenticated ? (
-            <div className="px-4 flex-1 flex flex-col">
+            <div className="px-4 flex-1 flex flex-col pt-10">
               <Bookmark className="mb-4 self-center text-orange-200" size={16}/>
               <form onSubmit={handleLogin} className="space-y-6">
                 <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-white/5 border-b border-white/10 p-2 text-[9px] outline-none" placeholder="Email"/>
@@ -81,8 +87,12 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
                   </div>
                 ))}
               </div>
-              <button onClick={handleLogoutAction} className="mt-auto pb-8 text-[8px] uppercase tracking-widest opacity-30 hover:opacity-100 flex items-center gap-2 self-center">
-                <LogOut size={10}/> Salir
+              
+              <button 
+                onClick={handleLogoutAction} 
+                className="mt-36 pb-12 text-[8px] uppercase tracking-widest opacity-30 hover:opacity-100 flex items-center gap-2 self-center transition-all"
+              >
+                <LogOut size={10}/> Cerrar Sesión
               </button>
             </div>
           )}
