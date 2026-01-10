@@ -3,7 +3,8 @@ import { LeftPage, RightPage } from './NotebookPage';
 import { db } from '../api/firebaseConfig'; 
 import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 
-export default function PostManager({ view, setView, user, currentPage, setCurrentPage }) {
+// AÑADIMOS setGlobalPosts a las props
+export default function PostManager({ view, setView, user, currentPage, setCurrentPage, setGlobalPosts }) {
   const [posts, setPosts] = useState([]);
   const [postForm, setPostForm] = useState({ id: null, title: "", image: null, content: "" });
   const fileInputRef = useRef(null);
@@ -12,10 +13,17 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // 1. Actualizamos el estado local (para el libro)
       setPosts(docs);
+      
+      // 2. IMPORTANTE: Actualizamos el estado global (para el buscador)
+      if (setGlobalPosts) {
+        setGlobalPosts(docs);
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [setGlobalPosts]); // Añadimos la dependencia
 
   const handleFormChange = (e) => {
     setPostForm({ ...postForm, [e.target.name]: e.target.value });
@@ -45,37 +53,32 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
   };
 
   const handleSavePost = async (e) => {
-    // 1. Log para saber si el click llega aquí
     console.log("Intentando guardar publicación...");
     
     if (e) {
       e.preventDefault();
-      e.stopPropagation(); // Evita interferencias
+      e.stopPropagation();
     }
 
-    // 2. Log de validación
     if (!postForm.title || !postForm.content) {
-      console.log("Error: Título o contenido vacíos", postForm);
       alert("Por favor, rellena el título y el relato.");
       return;
     }
 
     try {
-      console.log("Conectando con Firestore...");
-      
       const nuevoPost = {
         title: postForm.title,
         content: postForm.content,
         image: postForm.image || "",
         author: user?.name || "Salvador",
         createdAt: new Date(),
-        date: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).toUpperCase()
+        // GUARDAMOS LA FECHA COMPLETA PARA EL BUSCADOR
+        date: new Date().toISOString().split('T')[0] 
       };
 
       const docRef = await addDoc(collection(db, "posts"), nuevoPost);
       console.log("Documento guardado con ID:", docRef.id);
 
-      // 3. Limpiar estado y volver
       setPostForm({ id: null, title: "", image: null, content: "" });
       setView('reading');
       setCurrentPage(0);

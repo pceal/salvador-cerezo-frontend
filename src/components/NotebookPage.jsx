@@ -1,6 +1,24 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight, Image as ImageIcon, X, Send, Upload } from 'lucide-react';
 
+const formatViewDate = (dateString) => {
+  if(!dateString) return "";
+  
+  // Si la fecha ya tiene el formato antiguo corto (ej: "10 ENE"), 
+  // no podemos extraer el año de ahí.
+  if (dateString.length < 10 && dateString.includes(' ')) return dateString;
+  
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+
+  // Añadimos 'year' a las opciones
+  return date.toLocaleDateString('es-ES', { 
+    day: '2-digit', 
+    month: 'short', 
+    year: 'numeric' // <--- Esto añade el año (ej: 2026)
+  }).toUpperCase();
+};
+
 const getDynamicFontSize = (text) => {
   if (!text) return { fontSize: '1.1rem', lineHeight: '1.6rem' };
   const length = text.length;
@@ -20,7 +38,6 @@ export function LeftPage({ view, currentPost, newPostImage, currentPage, setCurr
             <h3 className="text-4xl font-bold text-stone-900 mb-6 italic break-words leading-tight font-serif decoration-stone-800/10 underline underline-offset-8">
               {currentPost?.title || "Sin título"}
             </h3>
-            {/* Se eliminó el borde 'border border-stone-800/10' y el padding 'p-1' */}
             <div className="w-full aspect-[4/3] mb-4 overflow-hidden rounded-sm shadow-md bg-stone-900/5">
               <div className="w-full h-full overflow-hidden rounded-sm grayscale-[0.1] sepia-[0.2]">
                 {currentPost?.image ? (
@@ -36,7 +53,6 @@ export function LeftPage({ view, currentPost, newPostImage, currentPage, setCurr
         ) : (
           <div className="animate-in slide-in-from-left-4 duration-500">
             <h3 className="text-3xl font-bold text-stone-900 mb-6 italic font-serif">Nuevo Relato</h3>
-            {/* Se eliminó el borde 'border-2 border-dashed border-stone-800/20' */}
             <div className="w-full aspect-video bg-stone-900/5 rounded-md flex items-center justify-center overflow-hidden relative">
               {newPostImage ? (
                 <>
@@ -75,10 +91,10 @@ export function RightPage({ view, currentPost, newPost, handleNewPostChange, han
       <div className="flex-1">
         {view === 'reading' ? (
           <div className="h-full flex flex-col animate-in fade-in duration-500">
-            {/* Fecha ahora centrada respecto al bloque de texto */}
             <div className="w-full text-center mb-6">
               <span className="text-[10px] text-[#78350f] font-black uppercase tracking-[0.4em] border-b border-[#78350f]/10 pb-1 inline-block">
-                {currentPost?.date || "FECHA"}
+                {/* APLICACIÓN DE LA FUNCIÓN DE FECHA FORMATEADA */}
+                {formatViewDate(currentPost?.date)}
               </span>
             </div>
             <div className="paper-scroll overflow-y-auto pr-4 max-h-[520px]">

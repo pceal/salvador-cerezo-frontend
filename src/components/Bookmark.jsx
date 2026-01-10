@@ -1,6 +1,6 @@
 import React from 'react';
-// Corregido: lucide-react
-import { Bookmark, Maximize2, Minimize2, FileText, Book, Calendar, Users, ChevronDown, LogOut, Eye, Plus, Edit3, Trash2 } from 'lucide-react';
+// Añadido Search a las importaciones
+import { Bookmark, Maximize2, Minimize2, FileText, Book, Calendar, Users, ChevronDown, LogOut, Eye, Plus, Edit3, Trash2, Search } from 'lucide-react';
 
 export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthenticated, user, activeMenu, setActiveMenu, handleLogin, formData, handleInputChange, handleLogoutAction, setView }) {
   
@@ -9,6 +9,8 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
       publicaciones: { 
         items: [
           { label: 'Ver Todas', icon: <Eye size={10}/>, action: () => { setView('reading'); setActiveMenu(null); } }, 
+          // NUEVA OPCIÓN: Buscar
+          { label: 'Buscar', icon: <Search size={10}/>, action: () => { setView('search-posts'); setActiveMenu(null); } },
           { label: 'Crear Nueva', icon: <Plus size={10}/>, action: () => { setView('create-post'); setActiveMenu(null); } },
           { label: 'Editar', icon: <Edit3 size={10}/> },
           { label: 'Eliminar', icon: <Trash2 size={10}/> }
@@ -18,10 +20,18 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
       eventos: { items: [{ label: 'Crear Evento', icon: <Plus size={10}/> }] },
       usuarios: { items: [{ label: 'Listado', icon: <Users size={10}/> }] }
     };
+
     return (
       <div className="w-full mt-1 space-y-0.5 animate-in slide-in-from-top-1 pl-2">
         {config[type].items.map((item, idx) => (
-          <button key={idx} onClick={(e) => { e.stopPropagation(); item.action && item.action(); }} className="w-full text-left px-3 py-1 text-[7px] hover:bg-white/10 rounded flex items-center gap-2 transition-colors opacity-70 hover:opacity-100 uppercase tracking-widest">
+          <button 
+            key={idx} 
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              if (item.action) item.action(); 
+            }} 
+            className="w-full text-left px-3 py-1 text-[7px] hover:bg-white/10 rounded flex items-center gap-2 transition-colors opacity-70 hover:opacity-100 uppercase tracking-widest"
+          >
             {item.icon} {item.label}
           </button>
         ))}
@@ -29,6 +39,7 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
     );
   };
 
+  // ... (Resto del componente BookmarkMenu se mantiene igual)
   return (
     <div 
       className={`absolute left-1/2 transition-all duration-700 z-50 shadow-[5px_5px_20px_rgba(0,0,0,0.4)] flex flex-col items-center text-white overflow-hidden
@@ -38,10 +49,9 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
       }`}
       onClick={() => isMinimized && setIsMinimized(false)}
     >
-    
+      {/* ... el resto del JSX que ya tienes ... */}
       {isMinimized ? (
         <div className="w-full h-full relative"> 
-          {/* top-[345px]: mantiene la palabra centrada en la solapa que ahora baja más */}
           <div className="absolute top-[323px] left-[55%] -translate-x-1/2 flex flex-col items-center">
             <span className="vertical-text text-[10px] font-medium uppercase tracking-[0.3em] leading-none text-orange-200/90 whitespace-nowrap">
               MENÚ
