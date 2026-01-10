@@ -1,22 +1,10 @@
 import React from 'react';
-import { ChevronLeft, ChevronRight, Image as ImageIcon, X, Send, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Image as ImageIcon, X, Send, Upload, Edit3, Trash2 } from 'lucide-react';
 
 const formatViewDate = (dateString) => {
   if(!dateString) return "";
-  
-  // Si la fecha ya tiene el formato antiguo corto (ej: "10 ENE"), 
-  // no podemos extraer el año de ahí.
-  if (dateString.length < 10 && dateString.includes(' ')) return dateString;
-  
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-
-  // Añadimos 'year' a las opciones
-  return date.toLocaleDateString('es-ES', { 
-    day: '2-digit', 
-    month: 'short', 
-    year: 'numeric' // <--- Esto añade el año (ej: 2026)
-  }).toUpperCase();
+  return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
 };
 
 const getDynamicFontSize = (text) => {
@@ -27,7 +15,10 @@ const getDynamicFontSize = (text) => {
   return { fontSize: '1.05rem', lineHeight: '1.6rem' };
 };
 
-export function LeftPage({ view, currentPost, newPostImage, currentPage, setCurrentPage, setView, setPostForm }) {
+export function LeftPage({ view, user, currentPost, newPostImage, currentPage, setCurrentPage, setView, setPostForm, onEdit, onDelete }) {
+  // Solo el admin puede ver los botones de edición y borrado
+  const isAdmin = user?.role === 'admin';
+
   return (
     <div className="w-1/2 pt-14 pb-16 px-12 flex flex-col rounded-l-xl overflow-hidden bg-[#f2e8cf] border-l-[24px] border-[#0c0a09] shadow-[inset_15px_0_20px_rgba(0,0,0,0.2)] relative">
       <div className="absolute right-0 top-0 h-full w-10 bg-gradient-to-l from-black/10 to-transparent pointer-events-none" />
@@ -38,7 +29,8 @@ export function LeftPage({ view, currentPost, newPostImage, currentPage, setCurr
             <h3 className="text-4xl font-bold text-stone-900 mb-6 italic break-words leading-tight font-serif decoration-stone-800/10 underline underline-offset-8">
               {currentPost?.title || "Sin título"}
             </h3>
-            <div className="w-full aspect-[4/3] mb-4 overflow-hidden rounded-sm shadow-md bg-stone-900/5">
+            
+            <div className="w-full aspect-[4/3] mb-4 overflow-hidden rounded-sm shadow-md bg-stone-900/5 relative group">
               <div className="w-full h-full overflow-hidden rounded-sm grayscale-[0.1] sepia-[0.2]">
                 {currentPost?.image ? (
                   <img src={currentPost.image} alt="Post" className="w-full h-full object-cover" />
@@ -49,10 +41,30 @@ export function LeftPage({ view, currentPost, newPostImage, currentPage, setCurr
                 )}
               </div>
             </div>
+
+            {/* ACCIONES DE ADMIN (BAJO LA FOTO) */}
+            {currentPost && isAdmin && (
+              <div className="flex gap-6 mt-4 border-t border-stone-800/10 pt-4">
+                <button 
+                  onClick={() => onEdit(currentPost)}
+                  className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-amber-800 hover:text-amber-600 transition-colors font-bold italic"
+                >
+                  <Edit3 size={14} /> Editar Relato
+                </button>
+                <button 
+                  onClick={() => onDelete(currentPost)}
+                  className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-red-800 hover:text-red-600 transition-colors font-bold italic"
+                >
+                  <Trash2 size={14} /> Borrar
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="animate-in slide-in-from-left-4 duration-500">
-            <h3 className="text-3xl font-bold text-stone-900 mb-6 italic font-serif">Nuevo Relato</h3>
+            <h3 className="text-3xl font-bold text-stone-900 mb-6 italic font-serif">
+              {setPostForm.id ? "Editando Relato" : "Nuevo Relato"}
+            </h3>
             <div className="w-full aspect-video bg-stone-900/5 rounded-md flex items-center justify-center overflow-hidden relative">
               {newPostImage ? (
                 <>
@@ -93,8 +105,7 @@ export function RightPage({ view, currentPost, newPost, handleNewPostChange, han
           <div className="h-full flex flex-col animate-in fade-in duration-500">
             <div className="w-full text-center mb-6">
               <span className="text-[10px] text-[#78350f] font-black uppercase tracking-[0.4em] border-b border-[#78350f]/10 pb-1 inline-block">
-                {/* APLICACIÓN DE LA FUNCIÓN DE FECHA FORMATEADA */}
-                {formatViewDate(currentPost?.date)}
+                {currentPost?.date ? formatViewDate(currentPost.date) : "FECHA"}
               </span>
             </div>
             <div className="paper-scroll overflow-y-auto pr-4 max-h-[520px]">
@@ -114,7 +125,7 @@ export function RightPage({ view, currentPost, newPost, handleNewPostChange, han
               <textarea name="content" value={newPost.content} onChange={handleNewPostChange} placeholder="Tu historia..." rows={8} className="w-full bg-stone-900/5 border border-stone-800/10 p-4 text-sm leading-relaxed outline-none focus:border-stone-800 rounded-sm resize-none text-stone-900 font-serif italic" required />
               <div className="flex gap-3">
                 <button type="submit" className="flex-1 bg-[#0c0a09] text-[#f2e8cf] text-[9px] uppercase tracking-[0.3em] py-3 rounded-sm flex items-center justify-center gap-2 hover:bg-black transition-all font-bold">
-                  <Send size={12}/> Registrar
+                  <Send size={12}/> {newPost.id ? "Actualizar" : "Registrar"}
                 </button>
                 <button type="button" onClick={() => setView('reading')} className="px-4 border border-stone-800/10 text-stone-500 text-[8px] uppercase font-serif italic">Cerrar</button>
               </div>

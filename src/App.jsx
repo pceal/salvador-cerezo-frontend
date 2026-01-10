@@ -16,8 +16,11 @@ export default function App() {
   const [activeMenu, setActiveMenu] = useState(null);
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
 
-  // --- ALMACÉN CENTRAL DE PUBLICACIONES ---
+  // Almacén central de publicaciones sincronizado con Firebase
   const [posts, setPosts] = useState([]); 
+
+  // --- Lógica para conectar Menú Lateral con PostManager ---
+  const [postToEdit, setPostToEdit] = useState(null);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-serif uppercase text-[10px] tracking-widest">Cargando...</div>;
 
@@ -34,6 +37,14 @@ export default function App() {
     }
   };
 
+  // Función para manejar los cambios en el formulario (VITAL PARA PODER ESCRIBIR)
+  const handleInputChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
   return (
     <div className="min-h-screen bg-[#e5e1d8] flex items-center justify-center p-8 overflow-hidden font-serif text-[#333]">
       <style>{`
@@ -47,20 +58,20 @@ export default function App() {
         {!showOpenedBook ? (
           <BookCover 
             formData={formData} 
-            handleInputChange={(e) => setFormData({...formData, [e.target.name]: e.target.value})} 
+            handleInputChange={handleInputChange} 
             handleSubmit={(e) => handleAuthAction(e, formData.name ? 'register' : 'login')} 
             setIsBookOpen={setIsBookOpen} 
           />
         ) : (
           <div className="flex w-[1100px] h-[720px] shadow-2xl bg-[#fdfcf8] rounded-md relative animate-in zoom-in-95 duration-700">
             
-            {/* RENDERIZADO DE VISTAS */}
+            {/* VISTAS DEL LIBRO */}
             {view === 'welcome' ? (
               <WelcomeView onNavigate={() => setView('reading')} />
             ) : view === 'search-posts' ? (
               <SearchFilter 
                 setView={setView} 
-                allPosts={posts} // 🔍 El buscador lee del almacén central
+                allPosts={posts} 
                 setCurrentPage={setCurrentPage}
               /> 
             ) : (
@@ -70,16 +81,36 @@ export default function App() {
                 user={user} 
                 currentPage={currentPage} 
                 setCurrentPage={setCurrentPage}
-                setGlobalPosts={setPosts} // 💾 Función para que el hijo guarde los datos aquí
+                setGlobalPosts={setPosts}
+                // Pasamos el post a editar si viene desde el menú
+                externalPostToEdit={postToEdit}
+                setExternalPostToEdit={setPostToEdit}
               />
             )}
 
+            {/* MENÚ MARCAPÁGINAS */}
             <BookmarkMenu 
-              isMinimized={isMinimized} setIsMinimized={setIsMinimized}
-              isAuthenticated={isAuthenticated} user={user} 
-              activeMenu={activeMenu} setActiveMenu={setActiveMenu} 
+              isMinimized={isMinimized} 
+              setIsMinimized={setIsMinimized}
+              isAuthenticated={isAuthenticated} 
+              user={user} 
+              activeMenu={activeMenu} 
+              setActiveMenu={setActiveMenu} 
+              handleLogin={(e) => handleAuthAction(e, 'login')}
+              formData={formData}
+              handleInputChange={handleInputChange} // <--- ESTO ES LO QUE TE PERMITE ESCRIBIR
               handleLogoutAction={() => { logout(); setView('welcome'); setIsBookOpen(false); }}
               setView={setView}
+              
+              // Props para Editar y Borrar desde el menú
+              currentPost={posts[currentPage]} 
+              onEdit={(post) => {
+                setPostToEdit(post);
+                setView('create-post');
+              }}
+              onDelete={async (id) => {
+                // Lógica de borrado vinculada a PostManager
+              }}
             />
           </div>
         )}

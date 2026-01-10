@@ -12,8 +12,7 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
           // NUEVA OPCIÓN: Buscar
           { label: 'Buscar', icon: <Search size={10}/>, action: () => { setView('search-posts'); setActiveMenu(null); } },
           { label: 'Crear Nueva', icon: <Plus size={10}/>, action: () => { setView('create-post'); setActiveMenu(null); } },
-          { label: 'Editar', icon: <Edit3 size={10}/> },
-          { label: 'Eliminar', icon: <Trash2 size={10}/> }
+        
         ] 
       },
       libros: { items: [{ label: 'Ver Biblioteca', icon: <Eye size={10}/> }, { label: 'Añadir Libro', icon: <Plus size={10}/> }] },

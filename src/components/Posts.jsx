@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LeftPage, RightPage } from './NotebookPage';
 import { db } from '../api/firebaseConfig'; 
-import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
-// AÑADIMOS setGlobalPosts a las props
 export default function PostManager({ view, setView, user, currentPage, setCurrentPage, setGlobalPosts }) {
   const [posts, setPosts] = useState([]);
   const [postForm, setPostForm] = useState({ id: null, title: "", image: null, content: "" });
@@ -13,95 +12,56 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // 1. Actualizamos el estado local (para el libro)
       setPosts(docs);
-      
-      // 2. IMPORTANTE: Actualizamos el estado global (para el buscador)
-      if (setGlobalPosts) {
-        setGlobalPosts(docs);
-      }
+      if (setGlobalPosts) setGlobalPosts(docs);
     });
     return () => unsubscribe();
-  }, [setGlobalPosts]); // Añadimos la dependencia
+  }, [setGlobalPosts]);
 
-  const handleFormChange = (e) => {
-    setPostForm({ ...postForm, [e.target.name]: e.target.value });
+  const handleDeletePost = async (post) => {
+    if (!post?.id) return;
+    if (window.confirm(`¿Estás seguro de que quieres borrar la publicación: "${post.title}"?`)) {
+      try {
+        await deleteDoc(doc(db, "posts", post.id));
+        if (currentPage > 0 && currentPage === posts.length - 1) {
+          setCurrentPage(prev => prev - 1);
+        }
+      } catch (error) {
+        console.error("Error al borrar:", error);
+      }
+    }
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target.result;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 600; 
-          const scaleSize = MAX_WIDTH / img.width;
-          canvas.width = MAX_WIDTH;
-          canvas.height = img.height * scaleSize;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.5);
-          setPostForm({ ...postForm, image: compressed });
-        };
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleEditInit = (post) => {
+    setPostForm({ id: post.id, title: post.title, content: post.content, image: post.image });
+    setView('create-post');
   };
 
   const handleSavePost = async (e) => {
-    console.log("Intentando guardar publicación...");
-    
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    if (!postForm.title || !postForm.content) {
-      alert("Por favor, rellena el título y el relato.");
-      return;
-    }
-
+    if (e) e.preventDefault();
+    const data = { title: postForm.title, content: postForm.content, image: postForm.image || "", author: user?.name || "Salvador" };
     try {
-      const nuevoPost = {
-        title: postForm.title,
-        content: postForm.content,
-        image: postForm.image || "",
-        author: user?.name || "Salvador",
-        createdAt: new Date(),
-        // GUARDAMOS LA FECHA COMPLETA PARA EL BUSCADOR
-        date: new Date().toISOString().split('T')[0] 
-      };
-
-      const docRef = await addDoc(collection(db, "posts"), nuevoPost);
-      console.log("Documento guardado con ID:", docRef.id);
-
+      if (postForm.id) {
+        await updateDoc(doc(db, "posts", postForm.id), data);
+      } else {
+        await addDoc(collection(db, "posts"), { ...data, createdAt: new Date(), date: new Date().toISOString().split('T')[0] });
+      }
       setPostForm({ id: null, title: "", image: null, content: "" });
       setView('reading');
-      setCurrentPage(0);
-      
-    } catch (error) {
-      console.error("Error detallado en Firebase:", error);
-      alert("Error de Firebase: " + error.message);
-    }
+    } catch (error) { console.error(error); }
   };
 
   return (
     <>
-      <LeftPage 
-        view={view} user={user} currentPost={posts[currentPage]} 
-        newPostImage={postForm.image} currentPage={currentPage} 
-        setCurrentPage={setCurrentPage} setView={setView} setPostForm={setPostForm} 
-      />
-      <RightPage 
-        view={view} currentPost={posts[currentPage]} newPost={postForm} 
-        handleNewPostChange={handleFormChange} handleFileChange={handleFileChange} 
-        handleSavePost={handleSavePost} fileInputRef={fileInputRef}
-        setView={setView} setCurrentPage={setCurrentPage} postsLength={posts.length}
-      />
+      <LeftPage view={view} user={user} currentPost={posts[currentPage]} newPostImage={postForm.image} currentPage={currentPage} setCurrentPage={setCurrentPage} setView={setView} setPostForm={setPostForm} onEdit={handleEditInit} onDelete={handleDeletePost} />
+      <RightPage view={view} currentPost={posts[currentPage]} newPost={postForm} handleNewPostChange={(e) => setPostForm({ ...postForm, [e.target.name]: e.target.value })} handleFileChange={(e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => setPostForm({ ...postForm, image: ev.target.result });
+          reader.readAsDataURL(file);
+        }
+      }} handleSavePost={handleSavePost} fileInputRef={fileInputRef} setView={setView} setCurrentPage={setCurrentPage} postsLength={posts.length} />
     </>
   );
 }
