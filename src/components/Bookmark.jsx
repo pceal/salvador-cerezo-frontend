@@ -1,22 +1,39 @@
 import React from 'react';
-// Añadido Search a las importaciones
 import { Bookmark, Maximize2, Minimize2, FileText, Book, Calendar, Users, ChevronDown, LogOut, Eye, Plus, Edit3, Trash2, Search } from 'lucide-react';
 
 export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthenticated, user, activeMenu, setActiveMenu, handleLogin, formData, handleInputChange, handleLogoutAction, setView }) {
   
+  const isAdmin = user?.role === 'admin';
+
+  // Lógica del nombre
+  const displayName = user?.name && user.name !== "Autor" 
+    ? user.name 
+    : (user?.email ? user.email.split('@')[0] : "Usuario");
+
   const AdminSubmenu = ({ type }) => {
     const config = {
       publicaciones: { 
-        items: [
-          { label: 'Ver Todas', icon: <Eye size={10}/>, action: () => { setView('reading'); setActiveMenu(null); } }, 
-          // NUEVA OPCIÓN: Buscar
-          { label: 'Buscar', icon: <Search size={10}/>, action: () => { setView('search-posts'); setActiveMenu(null); } },
-          { label: 'Crear Nueva', icon: <Plus size={10}/>, action: () => { setView('create-post'); setActiveMenu(null); } },
-        
-        ] 
+        items: isAdmin 
+          ? [
+              { label: 'Ver Todas', icon: <Eye size={10}/>, action: () => { setView('reading'); setActiveMenu(null); } }, 
+              { label: 'Buscar', icon: <Search size={10}/>, action: () => { setView('search-posts'); setActiveMenu(null); } },
+              { label: 'Crear Nueva', icon: <Plus size={10}/>, action: () => { setView('create-post'); setActiveMenu(null); } },
+            ]
+          : [
+              { label: 'Ver Todas', icon: <Eye size={10}/>, action: () => { setView('reading'); setActiveMenu(null); } }, 
+              { label: 'Buscar', icon: <Search size={10}/>, action: () => { setView('search-posts'); setActiveMenu(null); } },
+            ]
       },
-      libros: { items: [{ label: 'Ver Biblioteca', icon: <Eye size={10}/> }, { label: 'Añadir Libro', icon: <Plus size={10}/> }] },
-      eventos: { items: [{ label: 'Crear Evento', icon: <Plus size={10}/> }] },
+      libros: { 
+        items: isAdmin 
+          ? [{ label: 'Ver Biblioteca', icon: <Eye size={10}/> }, { label: 'Añadir Libro', icon: <Plus size={10}/> }]
+          : [{ label: 'Ver Biblioteca', icon: <Eye size={10}/> }]
+      },
+      eventos: { 
+        items: isAdmin 
+          ? [{ label: 'Crear Evento', icon: <Plus size={10}/> }]
+          : [{ label: 'Ver Eventos', icon: <Eye size={10}/> }] 
+      },
       usuarios: { items: [{ label: 'Listado', icon: <Users size={10}/> }] }
     };
 
@@ -38,7 +55,6 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
     );
   };
 
-  // ... (Resto del componente BookmarkMenu se mantiene igual)
   return (
     <div 
       className={`absolute left-1/2 transition-all duration-700 z-50 shadow-[5px_5px_20px_rgba(0,0,0,0.4)] flex flex-col items-center text-white overflow-hidden
@@ -48,11 +64,16 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
       }`}
       onClick={() => isMinimized && setIsMinimized(false)}
     >
-      {/* ... el resto del JSX que ya tienes ... */}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+
       {isMinimized ? (
         <div className="w-full h-full relative"> 
-          <div className="absolute top-[323px] left-[55%] -translate-x-1/2 flex flex-col items-center">
-            <span className="vertical-text text-[10px] font-medium uppercase tracking-[0.3em] leading-none text-orange-200/90 whitespace-nowrap">
+          {/* Subido de 338px a 332px para que quede más alto */}
+          <div className="absolute top-[332px] left-1/2 -translate-x-1/2 flex flex-col items-center">
+            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-orange-200/90 whitespace-nowrap">
               MENÚ
             </span>
           </div>
@@ -76,11 +97,18 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
           ) : (
             <div className="flex flex-col flex-1 px-3">
               <div className="flex flex-col items-center mb-6 opacity-60">
-                <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-[10px] mb-2 bg-white/5">{user?.name?.charAt(0)}</div>
-                <span className="text-[7px] uppercase tracking-[0.3em] font-bold">{user?.role}</span>
+                <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-[10px] mb-2 bg-white/5">
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+                <span className="text-[7px] uppercase tracking-[0.3em] font-bold text-center">
+                  {displayName}
+                </span>
               </div>
+              
               <div className="space-y-2">
-                {['publicaciones', 'libros', 'eventos', 'usuarios'].map(menuId => (
+                {['publicaciones', 'libros', 'eventos', 'usuarios']
+                  .filter(menuId => isAdmin || menuId !== 'usuarios')
+                  .map(menuId => (
                   <div key={menuId}>
                     <button onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === menuId ? null : menuId); }} className={`w-full flex items-center justify-between p-2.5 rounded ${activeMenu === menuId ? 'bg-white/10' : ''}`}>
                       <div className="flex items-center gap-3 text-[9px] font-bold uppercase tracking-widest">

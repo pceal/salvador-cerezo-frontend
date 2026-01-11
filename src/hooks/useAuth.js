@@ -13,28 +13,28 @@ export const useAuth = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  /**
-   * CONFIGURACIÓN DEL ADMINISTRADOR
-   * Ahora tomamos el email directamente desde las variables de entorno (.env)
-   */
   const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL; 
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
+        // 1. Intentamos sacar el nombre de varias fuentes
         const savedData = JSON.parse(localStorage.getItem('user_session'));
         
+        // Prioridad: 1. Firebase directo | 2. Lo que guardamos en el registro | 3. El email (antes del @)
+        const finalName = firebaseUser.displayName || savedData?.name || firebaseUser.email.split('@')[0];
+
         const userData = {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
-          name: firebaseUser.displayName || savedData?.name || "Autor",
-          // Verificación dinámica: comparamos con la variable de entorno
+          name: finalName, // <--- Aquí ya no dirá "Autor" por defecto
           role: firebaseUser.email.toLowerCase() === ADMIN_EMAIL?.toLowerCase() ? 'admin' : 'user',
           token: firebaseUser.accessToken
         };
 
         setUser(userData);
         setIsAuthenticated(true);
+        // Guardamos la sesión actualizada con el nombre real
         localStorage.setItem('user_session', JSON.stringify(userData));
       } else {
         setUser(null);
@@ -45,14 +45,27 @@ export const useAuth = () => {
     });
 
     return () => unsubscribe();
-  }, [ADMIN_EMAIL]); // Añadimos ADMIN_EMAIL como dependencia por seguridad
+  }, [ADMIN_EMAIL]);
 
   const registerAndLogin = async (email, password, name) => {
     try {
+      // 1. Crear el usuario
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // 2. Actualizar el perfil en Firebase con el NOMBRE del registro
       await updateProfile(userCredential.user, {
         displayName: name
       });
+
+      // 3. Importante: Guardamos en localStorage inmediatamente para que el useEffect lo pesque
+      const tempUserData = {
+        uid: userCredential.user.uid,
+        email: email,
+        name: name,
+        role: email.toLowerCase() === ADMIN_EMAIL?.toLowerCase() ? 'admin' : 'user'
+      };
+      localStorage.setItem('user_session', JSON.stringify(tempUserData));
+
       return { success: true };
     } catch (error) {
       if (error.code === 'auth/email-already-in-use') {
@@ -69,6 +82,7 @@ export const useAuth = () => {
 
   const logout = async () => {
     try {
+      localStorage.removeItem('user_session'); // Limpiamos al salir
       await signOut(auth);
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
