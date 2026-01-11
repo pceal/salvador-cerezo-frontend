@@ -21,7 +21,7 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
     return () => unsubscribe();
   }, [setGlobalPosts]);
 
-  // FUNCIÓN DE BÚSQUEDA QUIRÚRGICA
+  // FUNCIÓN DE BÚSQUEDA RECURSIVA PARA COMENTARIOS ANIDADOS
   const updateSpecificComment = (list, targetId, updateFn) => {
     return list.map(c => {
       if (c.id === targetId) return updateFn(c);
@@ -38,7 +38,7 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
     const postRef = doc(db, "posts", currentPost.id);
 
     const newComment = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9), // ID ÚNICO GARANTIZADO
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       text: textValue,
       userId: user.uid,
       userName: user.name || user.displayName || "Lector",
@@ -61,38 +61,31 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
     } catch (error) { console.error(error); }
   };
 
+  const handleEditComment = async (commentId, newText) => {
+    if (!newText.trim() || !user) return;
+    const currentPost = posts[currentPage];
+    const postRef = doc(db, "posts", currentPost.id);
+    const newTree = updateSpecificComment(currentPost.comments, commentId, (c) => ({ ...c, text: newText }));
+    try { await updateDoc(postRef, { comments: newTree }); } catch (error) { console.error(error); }
+  };
+
   const handleVoteComment = async (commentId, isLike) => {
     if (!user || !commentId) return;
     const currentPost = posts[currentPage];
     const postRef = doc(db, "posts", currentPost.id);
-
     const newTree = updateSpecificComment(currentPost.comments, commentId, (c) => {
       let currentLikes = Array.isArray(c.likes) ? [...c.likes] : [];
       let currentDislikes = Array.isArray(c.dislikes) ? [...c.dislikes] : [];
-
       if (isLike) {
-        if (currentLikes.includes(user.uid)) {
-          // ESTA LÍNEA QUITA EL LIKE SI YA EXISTE
-          currentLikes = currentLikes.filter(id => id !== user.uid);
-        } else {
-          currentLikes.push(user.uid);
-          currentDislikes = currentDislikes.filter(id => id !== user.uid);
-        }
+        if (currentLikes.includes(user.uid)) { currentLikes = currentLikes.filter(id => id !== user.uid); }
+        else { currentLikes.push(user.uid); currentDislikes = currentDislikes.filter(id => id !== user.uid); }
       } else {
-        if (currentDislikes.includes(user.uid)) {
-          // ESTA LÍNEA QUITA EL DISLIKE SI YA EXISTE
-          currentDislikes = currentDislikes.filter(id => id !== user.uid);
-        } else {
-          currentDislikes.push(user.uid);
-          currentLikes = currentLikes.filter(id => id !== user.uid);
-        }
+        if (currentDislikes.includes(user.uid)) { currentDislikes = currentDislikes.filter(id => id !== user.uid); }
+        else { currentDislikes.push(user.uid); currentLikes = currentLikes.filter(id => id !== user.uid); }
       }
       return { ...c, likes: currentLikes, dislikes: currentDislikes };
     });
-
-    try {
-      await updateDoc(postRef, { comments: newTree });
-    } catch (error) { console.error(error); }
+    try { await updateDoc(postRef, { comments: newTree }); } catch (error) { console.error(error); }
   };
 
   const handleLikeAction = async (isLike) => {
@@ -124,15 +117,17 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
     await updateDoc(postRef, { comments: filterRec(posts[currentPage].comments) });
   };
 
+  const currentPost = posts[currentPage];
+
   return (
     <>
       <LeftPage 
-        view={view} user={user} currentPost={posts[currentPage]} 
+        view={view} user={user} currentPost={currentPost} 
         currentPage={currentPage} setCurrentPage={setCurrentPage} setView={setView} 
         commentForm={commentForm} setCommentForm={setCommentForm} onSaveComment={() => handleSaveComment()}
       />
       <RightPage 
-        view={view} user={user} currentPost={posts[currentPage]} newPost={postForm} 
+        view={view} user={user} currentPost={currentPost} newPost={postForm} 
         handleNewPostChange={(e) => setPostForm({ ...postForm, [e.target.name]: e.target.value })} 
         handleFileChange={(e) => {
           const file = e.target.files[0];
@@ -144,23 +139,35 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
         }} 
         handleSavePost={handleSavePost} fileInputRef={fileInputRef} setView={setView} 
         setCurrentPage={setCurrentPage} postsLength={posts.length} setShowQuiz={setShowQuiz}
-        onDeleteComment={handleDeleteComment} onVoteComment={handleVoteComment} onReplyComment={handleSaveComment}
+        onDeleteComment={handleDeleteComment} 
+        onVoteComment={handleVoteComment} 
+        onReplyComment={handleSaveComment}
+        onEditComment={handleEditComment} 
       />
       {showQuiz && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#1a1a1a] border border-[#c5a059]/30 p-8 max-w-sm w-full shadow-2xl mx-4 text-center text-white">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md">
+          <div className="bg-[#111] border border-stone-800 p-10 max-w-sm w-full shadow-[0_0_50px_rgba(0,0,0,0.5)] mx-4 text-center">
             {quizStep === 'like' ? (
-              <div>
-                <p className="uppercase text-[11px] tracking-widest mb-6">¿Te gusta?</p>
+              <div className="animate-in fade-in zoom-in-95 duration-300">
+                <p className="font-serif italic text-stone-400 text-sm mb-2">Lectura finalizada</p>
+                <p className="uppercase text-[12px] font-black tracking-[0.3em] mb-10 text-white">¿Te ha gustado el relato?</p>
                 <div className="flex gap-4">
-                  <button onClick={() => handleLikeAction(true)} className="flex-1 border border-white/10 py-2 text-[10px] uppercase hover:bg-white hover:text-black">Sí</button>
-                  <button onClick={() => handleLikeAction(false)} className="flex-1 border border-white/10 py-2 text-[10px] uppercase hover:bg-red-900/40">No</button>
+                  <button onClick={() => handleLikeAction(true)} className="flex-1 bg-white text-black py-3 text-[10px] font-bold uppercase tracking-widest hover:bg-stone-200 transition-all">Sí</button>
+                  <button onClick={() => handleLikeAction(false)} className="flex-1 border border-stone-700 text-stone-400 py-3 text-[10px] font-bold uppercase tracking-widest hover:border-red-900 hover:text-red-500 transition-all">No</button>
                 </div>
               </div>
             ) : (
-              <div>
-                <p className="uppercase text-[11px] tracking-widest mb-6">¿Comentar?</p>
-                <button onClick={() => { setView('comments'); setShowQuiz(false); setQuizStep('like'); }} className="w-full bg-[#c5a059] text-black py-2.5 text-[9px] font-bold uppercase">Ir a comentarios</button>
+              <div className="animate-in slide-in-from-bottom-4 duration-500">
+                <p className="font-serif italic text-stone-400 text-sm mb-2">Gracias por tu voto</p>
+                <p className="uppercase text-[12px] font-black tracking-[0.2em] mb-10 text-white leading-relaxed">
+                  {currentPost?.comments?.length > 0 
+                    ? "Otros lectores han opinado, ¿quieres dejar tu huella?" 
+                    : "¿Quieres ser el primero en comentar este relato?"}
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button onClick={() => { setView('comments'); setShowQuiz(false); setQuizStep('like'); }} className="w-full bg-[#f2e8cf] text-black py-4 text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg">Escribir ahora</button>
+                  <button onClick={() => { setShowQuiz(false); setQuizStep('like'); }} className="w-full py-3 text-stone-500 text-[9px] uppercase font-bold tracking-widest hover:text-stone-300">Quizás luego</button>
+                </div>
               </div>
             )}
           </div>
