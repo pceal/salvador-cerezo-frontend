@@ -21,40 +21,77 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
     return () => unsubscribe();
   }, [setGlobalPosts]);
 
-  const handleSaveComment = async () => {
-    if (!commentForm.trim() || !user) return;
+  // FUNCIÓN DE BÚSQUEDA QUIRÚRGICA
+  const updateSpecificComment = (list, targetId, updateFn) => {
+    return list.map(c => {
+      if (c.id === targetId) return updateFn(c);
+      if (c.replies && c.replies.length > 0) {
+        return { ...c, replies: updateSpecificComment(c.replies, targetId, updateFn) };
+      }
+      return c;
+    });
+  };
+
+  const handleSaveComment = async (parentId = null, textValue = commentForm) => {
+    if (!textValue.trim() || !user) return;
     const currentPost = posts[currentPage];
     const postRef = doc(db, "posts", currentPost.id);
+
     const newComment = {
-      text: commentForm,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9), // ID ÚNICO GARANTIZADO
+      text: textValue,
       userId: user.uid,
       userName: user.name || user.displayName || "Lector",
       date: new Date().toISOString(),
+      likes: [],
+      dislikes: [],
+      replies: []
     };
+
     try {
-      await updateDoc(postRef, { comments: arrayUnion(newComment) });
-      setCommentForm("");
+      if (!parentId) {
+        await updateDoc(postRef, { comments: arrayUnion(newComment) });
+        setCommentForm("");
+      } else {
+        const updatedComments = updateSpecificComment(currentPost.comments, parentId, (c) => ({
+          ...c, replies: [...(c.replies || []), newComment]
+        }));
+        await updateDoc(postRef, { comments: updatedComments });
+      }
     } catch (error) { console.error(error); }
   };
 
-  const handleDeleteComment = async (commentObj) => {
-    if (!window.confirm("¿Borrar este comentario?")) return;
+  const handleVoteComment = async (commentId, isLike) => {
+    if (!user || !commentId) return;
     const currentPost = posts[currentPage];
     const postRef = doc(db, "posts", currentPost.id);
-    try {
-      await updateDoc(postRef, { comments: arrayRemove(commentObj) });
-    } catch (error) { console.error(error); }
-  };
 
-  // NUEVA FUNCIÓN PARA ACTUALIZAR EL COMENTARIO
-  const handleUpdateComment = async (oldComment, newText) => {
-    const currentPost = posts[currentPage];
-    const postRef = doc(db, "posts", currentPost.id);
-    const updatedComment = { ...oldComment, text: newText };
+    const newTree = updateSpecificComment(currentPost.comments, commentId, (c) => {
+      let currentLikes = Array.isArray(c.likes) ? [...c.likes] : [];
+      let currentDislikes = Array.isArray(c.dislikes) ? [...c.dislikes] : [];
+
+      if (isLike) {
+        if (currentLikes.includes(user.uid)) {
+          // ESTA LÍNEA QUITA EL LIKE SI YA EXISTE
+          currentLikes = currentLikes.filter(id => id !== user.uid);
+        } else {
+          currentLikes.push(user.uid);
+          currentDislikes = currentDislikes.filter(id => id !== user.uid);
+        }
+      } else {
+        if (currentDislikes.includes(user.uid)) {
+          // ESTA LÍNEA QUITA EL DISLIKE SI YA EXISTE
+          currentDislikes = currentDislikes.filter(id => id !== user.uid);
+        } else {
+          currentDislikes.push(user.uid);
+          currentLikes = currentLikes.filter(id => id !== user.uid);
+        }
+      }
+      return { ...c, likes: currentLikes, dislikes: currentDislikes };
+    });
+
     try {
-      // En Firebase para editar en un array: borramos el viejo y añadimos el nuevo
-      await updateDoc(postRef, { comments: arrayRemove(oldComment) });
-      await updateDoc(postRef, { comments: arrayUnion(updatedComment) });
+      await updateDoc(postRef, { comments: newTree });
     } catch (error) { console.error(error); }
   };
 
@@ -69,36 +106,30 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
     } catch (error) { console.error(error); }
   };
 
-  const handleDeletePost = async (post) => {
-    if (!post?.id) return;
-    if (window.confirm(`¿Borrar: "${post.title}"?`)) {
-      try { await deleteDoc(doc(db, "posts", post.id)); } catch (error) { console.error(error); }
-    }
-  };
-
-  const handleEditInit = (post) => {
-    setPostForm({ id: post.id, title: post.title, content: post.content, image: post.image });
-    setView('create-post');
-  };
-
   const handleSavePost = async (e) => {
     if (e) e.preventDefault();
     const data = { title: postForm.title, content: postForm.content, image: postForm.image || "", author: user?.name || "Salvador" };
     try {
       if (postForm.id) { await updateDoc(doc(db, "posts", postForm.id), data); }
-      else { await addDoc(collection(db, "posts"), { ...data, createdAt: new Date(), date: new Date().toISOString().split('T')[0], comments: [] }); }
+      else { await addDoc(collection(db, "posts"), { ...data, createdAt: new Date(), date: new Date().toISOString().split('T')[0], comments: [], likes: [], dislikes: [] }); }
       setPostForm({ id: null, title: "", image: null, content: "" });
       setView('reading');
     } catch (error) { console.error(error); }
   };
 
+  const handleDeleteComment = async (id) => {
+    if (!window.confirm("¿Borrar?")) return;
+    const postRef = doc(db, "posts", posts[currentPage].id);
+    const filterRec = (list) => list.filter(c => c.id !== id).map(c => ({...c, replies: filterRec(c.replies || [])}));
+    await updateDoc(postRef, { comments: filterRec(posts[currentPage].comments) });
+  };
+
   return (
     <>
       <LeftPage 
-        view={view} user={user} currentPost={posts[currentPage]} newPostImage={postForm.image} 
+        view={view} user={user} currentPost={posts[currentPage]} 
         currentPage={currentPage} setCurrentPage={setCurrentPage} setView={setView} 
-        setPostForm={setPostForm} onEdit={handleEditInit} onDelete={handleDeletePost}
-        commentForm={commentForm} setCommentForm={setCommentForm} onSaveComment={handleSaveComment}
+        commentForm={commentForm} setCommentForm={setCommentForm} onSaveComment={() => handleSaveComment()}
       />
       <RightPage 
         view={view} user={user} currentPost={posts[currentPage]} newPost={postForm} 
@@ -113,28 +144,23 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
         }} 
         handleSavePost={handleSavePost} fileInputRef={fileInputRef} setView={setView} 
         setCurrentPage={setCurrentPage} postsLength={posts.length} setShowQuiz={setShowQuiz}
-        onDeleteComment={handleDeleteComment}
-        onUpdateComment={handleUpdateComment} // PASAMOS LA FUNCIÓN
+        onDeleteComment={handleDeleteComment} onVoteComment={handleVoteComment} onReplyComment={handleSaveComment}
       />
-
       {showQuiz && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm text-center">
-          <div className="bg-[#1a1a1a] border border-[#c5a059]/30 p-8 max-w-sm w-full shadow-2xl mx-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#1a1a1a] border border-[#c5a059]/30 p-8 max-w-sm w-full shadow-2xl mx-4 text-center text-white">
             {quizStep === 'like' ? (
-              <div className="animate-in fade-in zoom-in duration-300">
-                <p className="text-white uppercase text-[11px] tracking-widest mb-6">¿Te ha gustado la publicación?</p>
+              <div>
+                <p className="uppercase text-[11px] tracking-widest mb-6">¿Te gusta?</p>
                 <div className="flex gap-4">
-                  <button onClick={() => handleLikeAction(true)} className="flex-1 bg-white/5 border border-white/10 py-2 text-[10px] uppercase hover:bg-white hover:text-black transition-all text-white">Sí</button>
-                  <button onClick={() => handleLikeAction(false)} className="flex-1 bg-white/5 border border-white/10 py-2 text-[10px] uppercase hover:bg-red-900/20 hover:text-red-400 transition-all text-white">No</button>
+                  <button onClick={() => handleLikeAction(true)} className="flex-1 border border-white/10 py-2 text-[10px] uppercase hover:bg-white hover:text-black">Sí</button>
+                  <button onClick={() => handleLikeAction(false)} className="flex-1 border border-white/10 py-2 text-[10px] uppercase hover:bg-red-900/40">No</button>
                 </div>
               </div>
             ) : (
-              <div className="animate-in slide-in-from-right-4 duration-300">
-                <p className="text-white uppercase text-[11px] tracking-widest mb-6">¿Quieres dejar tu comentario?</p>
-                <div className="flex flex-col gap-3">
-                  <button onClick={() => { setView('comments'); setShowQuiz(false); setQuizStep('like'); }} className="w-full bg-[#c5a059] text-black py-2.5 text-[9px] font-bold uppercase tracking-widest">Sí, ir a comentarios</button>
-                  <button onClick={() => { setShowQuiz(false); setQuizStep('like'); }} className="text-[8px] uppercase opacity-40 hover:opacity-100 mt-2 text-white">Ahora no</button>
-                </div>
+              <div>
+                <p className="uppercase text-[11px] tracking-widest mb-6">¿Comentar?</p>
+                <button onClick={() => { setView('comments'); setShowQuiz(false); setQuizStep('like'); }} className="w-full bg-[#c5a059] text-black py-2.5 text-[9px] font-bold uppercase">Ir a comentarios</button>
               </div>
             )}
           </div>
