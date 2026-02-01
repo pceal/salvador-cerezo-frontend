@@ -1,10 +1,132 @@
-import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Image as ImageIcon, Send, Upload, Edit3, Trash2, ThumbsUp, ThumbsDown, MessageCircle, User, Reply } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  ChevronLeft, ChevronRight, Image as ImageIcon, Send, Upload, 
+  Edit3, Trash2, ThumbsUp, ThumbsDown, MessageCircle, User, 
+  Reply, Lock, Unlock, Search, ShieldCheck 
+} from 'lucide-react';
+
+// IMPORTANTE: Importamos la base de datos aquí para que el componente sea autónomo
+import { db } from '../api/firebaseConfig';
+import { collection, onSnapshot, doc, deleteDoc, updateDoc, query } from 'firebase/firestore';
+
+// --- COMPONENTES AUXILIARES ---
 
 const formatViewDate = (dateString) => {
   if(!dateString) return "";
   const date = new Date(dateString);
   return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+};
+
+/**
+ * COMPONENTE USERMANAGEMENT (Lógica interna e independiente)
+ */
+const UserManagement = ({ currentUser }) => {
+  const [users, setUsers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // Lógica de Firebase interna
+  useEffect(() => {
+    if (!db) return;
+    const q = query(collection(db, "users"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const usersData = snapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+      }));
+      setUsers(usersData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error cargando usuarios:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const onToggleBlock = async (uid, isBlocked) => {
+    try {
+      await updateDoc(doc(db, "users", uid), { isBlocked });
+    } catch (error) { console.error(error); }
+  };
+
+  const onDeleteUser = async (uid) => {
+    if (window.confirm("¿Eliminar este lector permanentemente?")) {
+      try {
+        await deleteDoc(doc(db, "users", uid));
+      } catch (error) { console.error(error); }
+    }
+  };
+
+  const filteredUsers = users
+    .filter(u => 
+      u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-12 text-center">
+        <ShieldCheck size={48} className="text-red-800 mb-4 opacity-20" />
+        <p className="font-serif italic text-stone-500">Acceso restringido.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full animate-in fade-in duration-500 text-left">
+      <div className="mb-8 border-b border-stone-800/10 pb-4">
+        <h2 className="text-3xl font-bold text-stone-900 font-serif italic mb-4">Gestión de Usuarios</h2>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+          <input 
+            type="text" 
+            placeholder="Buscar lector..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-stone-900/5 border border-stone-800/10 rounded-sm py-2 pl-10 pr-4 text-sm font-serif italic outline-none focus:border-stone-800/30 transition-colors"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto pr-2 paper-scroll">
+        {loading ? (
+          <p className="text-center font-serif italic text-stone-400">Abriendo registros...</p>
+        ) : (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-[0.2em] text-stone-400 border-b border-stone-800/5">
+                <th className="text-left pb-4 font-black">Usuario</th>
+                <th className="text-right pb-4 font-black">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-800/5">
+              {filteredUsers.map((user) => (
+                <tr key={user.uid} className={`group hover:bg-stone-800/5 transition-colors ${user.isBlocked ? 'opacity-50' : ''}`}>
+                  <td className="py-4">
+                    <div className="flex flex-col">
+                      <span className="font-serif italic text-sm font-bold text-stone-800">{user.name}</span>
+                      <span className="text-[10px] text-stone-500 font-mono">{user.email}</span>
+                    </div>
+                  </td>
+                  <td className="py-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => onToggleBlock(user.uid, !user.isBlocked)} className="p-2 text-amber-700">
+                        {user.isBlocked ? <Unlock size={14} /> : <Lock size={14} />}
+                      </button>
+                      <button onClick={() => onDeleteUser(user.uid)} className="p-2 text-red-700">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
 };
 
 const CommentItem = ({ c, user, onVote, onDelete, onReply, onEdit, level = 0 }) => {
@@ -75,7 +197,11 @@ const CommentItem = ({ c, user, onVote, onDelete, onReply, onEdit, level = 0 }) 
   );
 };
 
-export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage, setView, commentForm, setCommentForm, onSaveComment }) {
+// --- COMPONENTES PRINCIPALES ---
+
+export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage, setView, commentForm, setCommentForm, onSaveComment, onEditPost, onDeletePost }) {
+  const isAdmin = user?.role === 'admin';
+
   return (
     <div className="w-1/2 pt-14 pb-16 px-12 flex flex-col rounded-l-xl bg-[#f2e8cf] border-l-[24px] border-[#0c0a09] shadow-[inset_15px_0_20px_rgba(0,0,0,0.2)] relative">
       <div className="flex-1 flex flex-col">
@@ -85,6 +211,18 @@ export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage,
             <div className="w-full aspect-[4/3] mb-4 overflow-hidden rounded-sm shadow-md bg-stone-900/5">
               {currentPost?.image && <img src={currentPost.image} className="w-full h-full object-cover grayscale-[0.1]" alt="" />}
             </div>
+
+            {currentPost && isAdmin && (
+              <div className="flex gap-6 mb-6 border-t border-stone-800/10 pt-4">
+                <button onClick={() => onEditPost(currentPost)} className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-amber-800 hover:text-amber-600 transition-colors font-bold italic">
+                  <Edit3 size={14} /> EDITAR RELATO
+                </button>
+                <button onClick={() => onDeletePost(currentPost)} className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-red-800 hover:text-red-600 transition-colors font-bold italic">
+                  <Trash2 size={14} /> BORRAR
+                </button>
+              </div>
+            )}
+
             <div className="flex gap-6 mb-8">
               <div className="flex items-center gap-2">
                 <ThumbsUp size={16} className="text-blue-600" />
@@ -95,7 +233,8 @@ export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage,
                 <span className="text-xs font-bold text-stone-700">{currentPost?.dislikes?.length || 0}</span>
               </div>
             </div>
-            <button onClick={() => setView('comments')} className="mt-auto flex items-center gap-2 text-stone-500 hover:text-stone-800 font-bold text-[10px] uppercase italic tracking-widest">
+            
+            <button onClick={() => setView('comments')} className="mt-auto mb-20 flex items-center gap-2 text-stone-500 hover:text-stone-800 font-bold text-[10px] uppercase italic tracking-widest">
               <MessageCircle size={14} /> Ver comentarios
             </button>
           </div>
@@ -104,7 +243,6 @@ export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage,
             <h3 className="text-2xl font-bold text-stone-900 mb-1 italic font-serif">Comentarios:</h3>
             <p className="text-lg text-amber-900/80 mb-8 font-serif italic border-b border-stone-800/10 pb-4 uppercase tracking-tight">"{currentPost?.title}"</p>
             
-            {/* CUADRO FLOTANTE DE LAS CAPTURAS */}
             <div className="bg-white/40 p-8 rounded-sm border border-stone-800/10 shadow-sm relative mb-6">
               <div className="flex items-center gap-2 mb-4 text-stone-600">
                 <User size={14} />
@@ -124,22 +262,44 @@ export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage,
               </button>
             </div>
 
-            <button onClick={() => setView('reading')} className="mt-auto text-stone-500 hover:text-stone-900 text-[9px] uppercase font-bold italic flex items-center gap-2 tracking-widest">
+            <button onClick={() => setView('reading')} className="mt-auto mb-20 text-stone-500 hover:text-stone-900 text-[9px] uppercase font-bold italic flex items-center gap-2 tracking-widest">
               <ChevronLeft size={12}/> VOLVER AL RELATO
             </button>
           </div>
         ) : null}
       </div>
-      <div className="absolute bottom-6 left-12 opacity-30 font-serif text-[9px] uppercase tracking-[0.3em] font-bold text-stone-600">Pág. {currentPage * 2 + 1}</div>
+      
+      <div className="absolute bottom-6 left-12 flex flex-col items-start gap-1 z-10">
+        {view === 'reading' && currentPage > 0 && (
+          <button 
+            type="button"
+            onClick={() => setCurrentPage(currentPage - 1)} 
+            className="flex items-center gap-1.5 text-stone-600 hover:text-stone-900 transition-colors text-[10px] uppercase tracking-widest font-black italic bg-white/20 px-2 py-1 rounded-sm"
+          >
+            <ChevronLeft size={12}/> Anterior
+          </button>
+        )}
+        <div className="opacity-40 font-serif text-[9px] uppercase tracking-[0.3em] font-bold text-stone-600 ml-1">
+          Pág. {currentPage * 2 + 1}
+        </div>
+      </div>
     </div>
   );
 }
 
-export function RightPage({ view, user, currentPost, newPost, handleNewPostChange, handleFileChange, fileInputRef, handleSavePost, setView, setCurrentPage, postsLength, setShowQuiz, onDeleteComment, onVoteComment, onReplyComment, onEditComment }) {
+export function RightPage({ 
+  view, user, currentPost, newPost, handleNewPostChange, handleFileChange, 
+  fileInputRef, handleSavePost, setView, setCurrentPage, currentPage, 
+  postsLength, setShowQuiz, onDeleteComment, onVoteComment, onReplyComment, 
+  onEditComment
+}) {
   return (
     <div className="w-1/2 pt-14 pb-16 px-12 flex flex-col rounded-r-xl relative bg-[#f2e8cf] border-r-[24px] border-[#0c0a09] shadow-[inset_-15px_0_20px_rgba(0,0,0,0.2)]">
       <div className="flex-1">
-        {view === 'comments' ? (
+        {/* Aquí insertamos el componente autónomo */}
+        {view === 'user-management' ? (
+          <UserManagement currentUser={user} />
+        ) : view === 'comments' ? (
           <div className="animate-in fade-in h-full flex flex-col text-left">
              <h3 className="text-[10px] uppercase tracking-[0.4em] font-black text-[#78350f] mb-8 border-b border-[#78350f]/10 pb-2">HILO DE DISCUSIÓN</h3>
              <div className="paper-scroll overflow-y-auto pr-4 max-h-[500px] space-y-8">
@@ -170,9 +330,15 @@ export function RightPage({ view, user, currentPost, newPost, handleNewPostChang
           </form>
         )}
       </div>
-      <div className="absolute bottom-6 right-12">
+      <div className="absolute bottom-6 right-12 z-10">
         {view === 'reading' && (
-          <button onClick={() => setCurrentPage(p => Math.min(postsLength - 1, p + 1))} className="flex items-center gap-1.5 text-stone-500 hover:text-stone-900 transition-colors text-[9px] uppercase tracking-widest font-bold italic">Siguiente <ChevronRight size={12}/></button>
+          <button 
+            type="button"
+            onClick={() => setCurrentPage(p => Math.min(postsLength - 1, p + 1))} 
+            className="flex items-center gap-1.5 text-stone-600 hover:text-stone-900 transition-colors text-[10px] uppercase tracking-widest font-black italic bg-white/20 px-2 py-1 rounded-sm"
+          >
+            Siguiente <ChevronRight size={12}/>
+          </button>
         )}
       </div>
     </div>

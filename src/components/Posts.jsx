@@ -21,6 +21,26 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
     return () => unsubscribe();
   }, [setGlobalPosts]);
 
+  // --- LÓGICA DE ADMINISTRACIÓN DE POSTS ---
+  const handleEditPost = (post) => {
+    setPostForm({ id: post.id, title: post.title, content: post.content, image: post.image });
+    setView('create-post');
+  };
+
+  const handleDeletePost = async (post) => {
+    if (!post?.id) return;
+    if (window.confirm(`¿Estás seguro de que quieres borrar el relato: "${post.title}"?`)) {
+      try {
+        await deleteDoc(doc(db, "posts", post.id));
+        if (currentPage > 0 && currentPage === posts.length - 1) {
+          setCurrentPage(prev => prev - 1);
+        }
+      } catch (error) {
+        console.error("Error al borrar el post:", error);
+      }
+    }
+  };
+
   // FUNCIÓN DE BÚSQUEDA RECURSIVA PARA COMENTARIOS ANIDADOS
   const updateSpecificComment = (list, targetId, updateFn) => {
     return list.map(c => {
@@ -103,8 +123,19 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
     if (e) e.preventDefault();
     const data = { title: postForm.title, content: postForm.content, image: postForm.image || "", author: user?.name || "Salvador" };
     try {
-      if (postForm.id) { await updateDoc(doc(db, "posts", postForm.id), data); }
-      else { await addDoc(collection(db, "posts"), { ...data, createdAt: new Date(), date: new Date().toISOString().split('T')[0], comments: [], likes: [], dislikes: [] }); }
+      if (postForm.id) { 
+        await updateDoc(doc(db, "posts", postForm.id), data); 
+      }
+      else { 
+        await addDoc(collection(db, "posts"), { 
+          ...data, 
+          createdAt: new Date(), 
+          date: new Date().toISOString().split('T')[0], 
+          comments: [], 
+          likes: [], 
+          dislikes: [] 
+        }); 
+      }
       setPostForm({ id: null, title: "", image: null, content: "" });
       setView('reading');
     } catch (error) { console.error(error); }
@@ -125,6 +156,8 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
         view={view} user={user} currentPost={currentPost} 
         currentPage={currentPage} setCurrentPage={setCurrentPage} setView={setView} 
         commentForm={commentForm} setCommentForm={setCommentForm} onSaveComment={() => handleSaveComment()}
+        onEditPost={handleEditPost} onDeletePost={handleDeletePost}
+        setPostForm={setPostForm}
       />
       <RightPage 
         view={view} user={user} currentPost={currentPost} newPost={postForm} 
@@ -174,5 +207,5 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
         </div>
       )}
     </>
-  );
+  ); 
 }

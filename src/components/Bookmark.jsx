@@ -34,7 +34,14 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
           ? [{ label: 'Crear Evento', icon: <Plus size={10}/> }]
           : [{ label: 'Ver Eventos', icon: <Eye size={10}/> }] 
       },
-      usuarios: { items: [{ label: 'Listado', icon: <Users size={10}/> }] }
+      // CAMBIO AQUÍ: Se añade la acción para abrir el componente de usuarios
+      usuarios: { 
+        items: [{ 
+          label: 'Listado', 
+          icon: <Users size={10}/>, 
+          action: () => { setView('user-management'); setActiveMenu(null); } 
+        }] 
+      }
     };
 
     return (
@@ -71,7 +78,6 @@ export default function BookmarkMenu({ isMinimized, setIsMinimized, isAuthentica
 
       {isMinimized ? (
         <div className="w-full h-full relative"> 
-          {/* Subido de 338px a 332px para que quede más alto */}
           <div className="absolute top-[332px] left-1/2 -translate-x-1/2 flex flex-col items-center">
             <span className="text-[10px] font-black uppercase tracking-[0.25em] text-orange-200/90 whitespace-nowrap">
               MENÚ
