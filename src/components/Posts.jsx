@@ -109,13 +109,17 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
   };
 
   const handleLikeAction = async (isLike) => {
+    console.log("1. Padre: handleLikeAction ejecutado. ¿Es Like?:", isLike);
     const currentPost = posts[currentPage];
     if (!currentPost || !user) return;
     const postRef = doc(db, "posts", currentPost.id);
+    console.log("2. Intentando actualizar Firebase para el post:", currentPost.id);
     try {
       if (isLike) { await updateDoc(postRef, { likes: arrayUnion(user.uid), dislikes: arrayRemove(user.uid) }); }
       else { await updateDoc(postRef, { dislikes: arrayUnion(user.uid), likes: arrayRemove(user.uid) }); }
       setQuizStep('comment'); 
+      console.log("3. Firebase actualizado con éxito");
+    setQuizStep('comment');
     } catch (error) { console.error(error); }
   };
 
@@ -157,7 +161,7 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
         currentPage={currentPage} setCurrentPage={setCurrentPage} setView={setView} 
         commentForm={commentForm} setCommentForm={setCommentForm} onSaveComment={() => handleSaveComment()}
         onEditPost={handleEditPost} onDeletePost={handleDeletePost}
-        setPostForm={setPostForm}
+        setPostForm={setPostForm} onVotePost={(id, isLike) => handleLikeAction(isLike)}
       />
       <RightPage 
         view={view} user={user} currentPost={currentPost} newPost={postForm} 
@@ -166,7 +170,26 @@ export default function PostManager({ view, setView, user, currentPage, setCurre
           const file = e.target.files[0];
           if (file) {
             const reader = new FileReader();
-            reader.onload = (ev) => setPostForm({ ...postForm, image: ev.target.result });
+            reader.onload = (ev) => {
+              const img = new Image();
+              img.src = ev.target.result;
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 600; 
+                let width = img.width;
+                let height = img.height;
+                if (width > MAX_WIDTH) {
+                  height *= MAX_WIDTH / width;
+                  width = MAX_WIDTH;
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.5);
+                setPostForm({ ...postForm, image: compressedBase64 });
+              };
+            };
             reader.readAsDataURL(file);
           }
         }} 

@@ -11,7 +11,6 @@ const CommentItem = ({ c, user, onVote, onDelete, onReply, level = 0 }) => {
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState("");
 
-  // SOLO MODIFICADO: Definición de estados de voto para el usuario actual
   const hasLike = c.likes?.includes(user?.uid);
   const hasDislike = c.dislikes?.includes(user?.uid);
 
@@ -25,21 +24,28 @@ const CommentItem = ({ c, user, onVote, onDelete, onReply, level = 0 }) => {
       
       <div className="flex items-center gap-4 mt-2">
         <div className="flex items-center gap-3">
-          {/* SOLO MODIFICADO: Lógica de color y escala para Like */}
-          <button 
-            onClick={() => onVote(c.id, true)} 
-            className={`flex items-center gap-1 text-[9px] transition-all ${hasLike ? 'text-blue-600 scale-110 font-bold' : 'text-stone-400 hover:text-blue-400'}`}
-          >
-            <ThumbsUp size={10} className={hasLike ? "fill-blue-600/20" : ""} /> {c.likes?.length || 0}
-          </button>
-          
-          {/* SOLO MODIFICADO: Lógica de color y escala para Dislike */}
-          <button 
-            onClick={() => onVote(c.id, false)} 
-            className={`flex items-center gap-1 text-[9px] transition-all ${hasDislike ? 'text-red-600 scale-110 font-bold' : 'text-stone-400 hover:text-red-400'}`}
-          >
-            <ThumbsDown size={10} className={hasDislike ? "fill-red-600/20" : ""} /> {c.dislikes?.length || 0}
-          </button>
+         <button 
+  onClick={() => {
+    console.log("Clic en LIKE de comentario ID:", c.id);
+    onVote(c.id, true); // Asegúrate de que en RightPage se pase como 'onVote'
+  }} 
+  className={`flex items-center gap-1 text-[9px] transition-all ${hasLike ? 'text-blue-600 scale-110 font-bold' : 'text-stone-400 hover:text-blue-400'}`}
+>
+  <ThumbsUp size={10} className={hasLike ? "fill-blue-600/20" : ""} /> 
+  {c.likes?.length || 0}
+</button>
+
+{/* BOTÓN DISLIKE DEL COMENTARIO */}
+<button 
+  onClick={() => {
+    console.log("Clic en DISLIKE de comentario ID:", c.id);
+    onVote(c.id, false);
+  }} 
+  className={`flex items-center gap-1 text-[9px] transition-all ${hasDislike ? 'text-red-600 scale-110 font-bold' : 'text-stone-400 hover:text-red-400'}`}
+>
+  <ThumbsDown size={10} className={hasDislike ? "fill-red-600/20" : ""} /> 
+  {c.dislikes?.length || 0}
+</button>
         </div>
         
         <button onClick={() => setIsReplying(!isReplying)} className="text-[8px] uppercase font-bold text-stone-400 hover:text-stone-800 flex items-center gap-1">
@@ -65,7 +71,11 @@ const CommentItem = ({ c, user, onVote, onDelete, onReply, level = 0 }) => {
   );
 };
 
-export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage, setView, commentForm, setCommentForm, onSaveComment }) {
+export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage, setView, commentForm, setCommentForm, onSaveComment, onVotePost }) {
+  // Lógica para detectar si el usuario ya votó el post principal
+  const hasLike = currentPost?.likes?.includes(user?.uid);
+  const hasDislike = currentPost?.dislikes?.includes(user?.uid);
+
   return (
     <div className="w-1/2 pt-14 pb-16 px-12 flex flex-col rounded-l-xl bg-[#f2e8cf] border-l-[24px] border-[#0c0a09] shadow-[inset_15px_0_20px_rgba(0,0,0,0.2)] relative">
       <div className="flex-1 flex flex-col">
@@ -78,12 +88,30 @@ export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage,
             
             <div className="flex gap-6 mb-8">
               <div className="flex items-center gap-2">
-                <ThumbsUp size={16} className="text-blue-600" />
-                <span className="text-xs font-bold text-stone-700">{currentPost?.likes?.length || 0}</span>
+                {/* BOTÓN LIKE PRINCIPAL */}
+                <button 
+                  onClick={() => {
+                    console.log("Voto Like en relato");
+                    onVotePost(currentPost?.id, true);
+                  }}
+                  className={`flex items-center gap-2 transition-all ${hasLike ? 'text-blue-600 scale-105' : 'text-stone-400 hover:text-blue-500'}`}
+                >
+                  <ThumbsUp size={16} className={hasLike ? "fill-blue-600/20" : ""} />
+                  <span className={`text-xs font-bold ${hasLike ? 'text-blue-600' : 'text-stone-700'}`}>{currentPost?.likes?.length || 0}</span>
+                </button>
               </div>
               <div className="flex items-center gap-2">
-                <ThumbsDown size={16} className="text-red-600" />
-                <span className="text-xs font-bold text-stone-700">{currentPost?.dislikes?.length || 0}</span>
+                {/* BOTÓN DISLIKE PRINCIPAL */}
+                <button 
+                  onClick={() => {
+                    console.log("Voto Dislike en relato");
+                    onVotePost(currentPost?.id, false);
+                  }}
+                  className={`flex items-center gap-2 transition-all ${hasDislike ? 'text-red-600 scale-105' : 'text-stone-400 hover:text-red-500'}`}
+                >
+                  <ThumbsDown size={16} className={hasDislike ? "fill-red-600/20" : ""} />
+                  <span className={`text-xs font-bold ${hasDislike ? 'text-red-600' : 'text-stone-700'}`}>{currentPost?.dislikes?.length || 0}</span>
+                </button>
               </div>
             </div>
             

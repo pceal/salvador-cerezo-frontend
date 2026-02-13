@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ChevronLeft, ChevronRight, Image as ImageIcon, Send, Upload, 
   Edit3, Trash2, ThumbsUp, ThumbsDown, MessageCircle, User, 
-  Reply, Lock, Unlock, Search, ShieldCheck 
+  Reply, Lock, Unlock, Search, ShieldCheck, 
 } from 'lucide-react';
 
 // IMPORTANTE: Importamos la base de datos aquí para que el componente sea autónomo
@@ -199,8 +199,10 @@ const CommentItem = ({ c, user, onVote, onDelete, onReply, onEdit, level = 0 }) 
 
 // --- COMPONENTES PRINCIPALES ---
 
-export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage, setView, commentForm, setCommentForm, onSaveComment, onEditPost, onDeletePost }) {
+export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage, setView, commentForm, setCommentForm, onSaveComment, onEditPost, onDeletePost, onVotePost }) {
   const isAdmin = user?.role === 'admin';
+  const hasLike = currentPost?.likes?.includes(user?.uid)
+const hasDislike = currentPost?.dislikes?.includes(user?.uid)
 
   return (
     <div className="w-1/2 pt-14 pb-16 px-12 flex flex-col rounded-l-xl bg-[#f2e8cf] border-l-[24px] border-[#0c0a09] shadow-[inset_15px_0_20px_rgba(0,0,0,0.2)] relative">
@@ -223,16 +225,31 @@ export function LeftPage({ view, user, currentPost, currentPage, setCurrentPage,
               </div>
             )}
 
-            <div className="flex gap-6 mb-8">
-              <div className="flex items-center gap-2">
-                <ThumbsUp size={16} className="text-blue-600" />
-                <span className="text-xs font-bold text-stone-700">{currentPost?.likes?.length || 0}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <ThumbsDown size={16} className="text-red-600" />
-                <span className="text-xs font-bold text-stone-700">{currentPost?.dislikes?.length || 0}</span>
-              </div>
-            </div>
+         <div className="flex gap-6 mb-8">
+  {/* BOTÓN LIKE */}
+  <button 
+    onClick={() => {
+      console.log("Clic en Like del Post");
+      onVotePost(currentPost?.id, true);
+    }}
+    className={`flex items-center gap-2 transition-transform active:scale-90 ${hasLike ? 'text-blue-600' : 'text-stone-400 hover:text-blue-500'}`}
+  >
+    <ThumbsUp size={18} className={hasLike ? "fill-blue-600/20" : ""} />
+    <span className="text-xs font-bold">{currentPost?.likes?.length || 0}</span>
+  </button>
+
+  {/* BOTÓN DISLIKE */}
+  <button 
+    onClick={() => {
+      console.log("Clic en Dislike del Post");
+      onVotePost(currentPost?.id, false);
+    }}
+    className={`flex items-center gap-2 transition-transform active:scale-90 ${hasDislike ? 'text-red-600' : 'text-stone-400 hover:text-red-500'}`}
+  >
+    <ThumbsDown size={18} className={hasDislike ? "fill-red-600/20" : ""} />
+    <span className="text-xs font-bold">{currentPost?.dislikes?.length || 0}</span>
+  </button>
+</div>
             
             <button onClick={() => setView('comments')} className="mt-auto mb-20 flex items-center gap-2 text-stone-500 hover:text-stone-800 font-bold text-[10px] uppercase italic tracking-widest">
               <MessageCircle size={14} /> Ver comentarios
